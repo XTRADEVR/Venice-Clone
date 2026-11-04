@@ -1,0 +1,125 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+
+enum Tier { ANON FREE PRO PRO_PLUS MAX }
+enum ModelKind { chat image video tts vision embed }
+
+model User {
+  id           String    @id @default(cuid())
+  email        String?   @unique
+  passHash     String?
+  anon         Boolean   @default(true)
+  tier         Tier      @default(ANON)
+  credits      Int       @default(200)
+  nsfwEnabled  Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  devices      Device[]
+  conversations Conversation[]
+  generations  Generation[]
+  ledger       CreditLedger[]
+  backups      Backup[]
+  daily        DailyUsage[]
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  ipHash    String?
+  createdAt DateTime @default(now())
+  lastSeen  DateTime @default(now())
+  @@index([userId])
+}
+
+model Model {
+  id             String    @id @default(cuid())
+  slug           String    @unique
+  label          String
+  vendor         String
+  kind           ModelKind
+  description    String    @default("")
+  contextWindow  Int?
+  creditsPer1kIn Float     @default(0)
+  creditsPer1kOut Float    @default(0)
+  creditsPerImage Float?
+  nsfw           Boolean   @default(false)
+  tierRequired   Tier      @default(ANON)
+  capabilities   String[]  @default([])
+  enabled        Boolean   @default(true)
+  sortOrder      Int       @default(100)
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String    @default("Percakapan baru")
+  model     String
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  attachments    Json?
+  tokensIn       Int?
+  tokensOut      Int?
+  createdAt      DateTime @default(now())
+  @@index([conversationId, createdAt])
+}
+
+model Generation {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      ModelKind
+  model     String
+  prompt    String
+  negative  String?
+  params    Json?
+  status    String    @default("queued")
+  url       String?
+  error     String?
+  credits   Int       @default(0)
+  createdAt DateTime  @default(now())
+  @@index([userId, createdAt])
+}
+
+model CreditLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta     Int
+  reason    String
+  ref       String?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+
+model DailyUsage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day    String
+  count  Int    @default(0)
+  @@unique([userId, day])
+}
+
+model Backup {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  size      Int
+  iv        String
+  salt      String
+  createdAt DateTime @default(now())
+}
